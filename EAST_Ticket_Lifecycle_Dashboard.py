@@ -8,7 +8,7 @@ import numpy as np
 # CONFIG (PASTE PASSWORD HERE)
 # =============================
 USERNAME = "github_servicenow_api"
-PASSWORD = " wL<c&sLHGso(mH3mIRs=byF5C%97o>P3z[K+QZSD"   # ✅ PASTE YOUR PASSWORD HERE
+PASSWORD = "wL<c&sLHGso(mH3mIRs=byF5C%97o>P3z[K+QZSD"   # ✅ PASTE YOUR PASSWORD HERE
 INSTANCE_URL = "https://progress1.service-now.com"
 
 EAST_TEAM = [
