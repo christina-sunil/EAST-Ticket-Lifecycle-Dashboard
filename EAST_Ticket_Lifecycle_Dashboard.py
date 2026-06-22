@@ -1,805 +1,606 @@
 import streamlit as st
 import pandas as pd
 import requests
+import math
 import numpy as np
-from datetime import datetime
-from requests.auth import HTTPBasicAuth
 
-# ============================================================
-# EAST Ticket Lifecycle Dashboard
-# Full version with:
-# ✅ RITM + Incident support
-# ✅ EAST Leads incidents included
-# ✅ Correct L1 / L2 mapping
-# ✅ Correct individual backlog counts
-# ✅ Direct password placeholder
-# ============================================================
-
-st.set_page_config(
-    page_title="EAST Ticket Lifecycle Dashboard",
-    page_icon="🎯",
-    layout="wide"
-)
-
-# ============================================================
-# SERVICENOW LOGIN CONFIG
-# ============================================================
-# IMPORTANT:
-# Paste your ServiceNow API password/token below.
-# Since this GitHub repo is public, do not keep the real password here long term.
-
+# =============================
+# CONFIG (PASTE PASSWORD HERE)
+# =============================
 USERNAME = "github_servicenow_api"
-
-# ✅ PASTE YOUR PASSWORD / TOKEN BETWEEN THE QUOTES BELOW
-PASSWORD = "wL<c&sLHGso(mH3mIRs=byF5C%97o>P3z[K+QZSD"
-
+PASSWORD = " wL<c&sLHGso(mH3mIRs=byF5C%97o>P3z[K+QZSD"   # ✅ PASTE YOUR PASSWORD HERE
 INSTANCE_URL = "https://progress1.service-now.com"
 
-# ============================================================
-# EAST CONFIG
-# ============================================================
-
 EAST_TEAM = [
-    "Balaji Manikanta Sai Sadhu",
-    "Digvijay Pawar",
-    "Manognasri Chitrala",
-    "Rachana Adiga",
-    "Saranmai Mandarapu",
-    "Sreeja Janumpally",
-    "Raleigh Turner",
-    "Christina Sunil",
+    "Balaji Manikanta Sai Sadhu", "Digvijay Pawar", "Manognasri Chitrala",
+    "Rachana Adiga", "Saranmai Mandarapu", "Sreeja Janumpally",
+    "Raleigh Turner", "Christina Sunil", "Chris Braga", "Chris braga"
 ]
 
-EAST_L1_GROUPS = [
+EAST_GROUPS = [
     "IT Supp: EAST - Delivery",
-    "IT Supp: System Access Requests",
-]
-
-EAST_L2_GROUPS = [
     "IT Supp: EAST - Leads",
+    "IT Supp: System Access Requests"
 ]
-
-EAST_GROUPS = EAST_L1_GROUPS + EAST_L2_GROUPS
 
 NOT_UPDATED_DAYS = 2
 
-PRIORITY_ORDER = {
-    "1 - Critical": 1,
-    "1-Critical": 1,
-    "Critical": 1,
-    "2 - High": 2,
-    "2-High": 2,
-    "High": 2,
-    "3 - Moderate": 3,
-    "3-Moderate": 3,
-    "Moderate": 3,
-    "Medium": 3,
-    "4 - Low": 4,
-    "4-Low": 4,
-    "Low": 4,
-    "5 - Planning": 5,
-    "5-Planning": 5,
-    "Planning": 5,
-    "Other": 6,
-    "": 6,
-    None: 6,
+# =============================
+# Chris Weighted Model
+# =============================
+WEIGHTS = {
+    "age": 0.25,
+    "inactivity": 0.20,
+    "priority": 0.20,
+    "reassign": 0.15,
+    "skill": 0.10,
+    "requester": 0.10
 }
 
-# ============================================================
-# BASIC HELPERS
-# ============================================================
-
-def safe_display_value(value):
-    """
-    ServiceNow may return fields as:
-    - plain text
-    - dict with display_value/value
-    - None
-    This helper safely returns readable display text.
-    """
-    if isinstance(value, dict):
-        display_value = value.get("display_value")
-        raw_value = value.get("value")
-
-        if display_value not in [None, ""]:
-            return str(display_value)
-
-        if raw_value not in [None, ""]:
-            return str(raw_value)
-
-        return ""
-
-    if value is None:
-        return ""
-
-    return str(value)
-
-
-def safe_raw_value(value):
-    """
-    Returns raw ServiceNow value where available.
-    """
-    if isinstance(value, dict):
-        raw_value = value.get("value")
-        display_value = value.get("display_value")
-
-        if raw_value not in [None, ""]:
-            return str(raw_value)
-
-        if display_value not in [None, ""]:
-            return str(display_value)
-
-        return ""
-
-    if value is None:
-        return ""
-
-    return str(value)
-
-
-def parse_datetime(value):
-    """
-    Converts ServiceNow date/time values safely.
-    """
-    if value is None:
-        return pd.NaT
-
-    value = str(value).strip()
-
-    if value == "":
-        return pd.NaT
-
-    try:
-        return pd.to_datetime(value, errors="coerce")
-    except Exception:
-        return pd.NaT
-
-
-def business_days_between(start_dt, end_dt=None):
-    """
-    Business-day age calculation.
-    Includes weekdays only.
-    """
-    if pd.isna(start_dt):
-        return 0
-
-    if end_dt is None or pd.isna(end_dt):
-        end_dt = pd.Timestamp.now()
-
-    try:
-        start_date = pd.to_datetime(start_dt).date()
-        end_date = pd.to_datetime(end_dt).date()
-    except Exception:
-        return 0
-
-    if end_date < start_date:
-        return 0
-
-    try:
-        return int(np.busday_count(start_date, end_date + pd.Timedelta(days=1).date()))
-    except Exception:
-        return 0
-
-
-def age_bucket(days):
-    try:
-        days = int(days)
-    except Exception:
-        return "UNKNOWN"
-
-    if days <= 5:
-        return "NEW"
-    elif days <= 14:
-        return "AGING"
-    elif days <= 30:
-        return "STALE"
-    else:
-        return "OLD"
-
-
-def normalize_priority(priority):
-    priority = safe_display_value(priority).strip()
-
-    if priority in PRIORITY_ORDER:
-        return priority
-
-    lower = priority.lower()
-
-    if lower.startswith("1") or "critical" in lower:
-        return "1 - Critical"
-    if lower.startswith("2") or "high" in lower:
-        return "2 - High"
-    if lower.startswith("3") or "moderate" in lower or "medium" in lower:
-        return "3 - Moderate"
-    if lower.startswith("4") or "low" in lower:
-        return "4 - Low"
-    if lower.startswith("5") or "planning" in lower:
-        return "5 - Planning"
-
-    if priority:
-        return priority
-
-    return "Other"
-
-
-def priority_rank(priority):
-    return PRIORITY_ORDER.get(normalize_priority(priority), 6)
-
-
-def map_level_from_group(assignment_group):
-    group = str(assignment_group).strip()
-
-    if group in EAST_L1_GROUPS:
-        return "L1"
-
-    if group in EAST_L2_GROUPS:
-        return "L2"
-
-    return "Other"
-
-
-def is_closed_or_cancelled(state):
-    """
-    We exclude fully closed/cancelled items.
-    We keep Resolved because your report includes resolved incident INC0101731.
-    """
-    state = str(state).strip().lower()
-
-    if state == "":
-        return False
-
-    if state.startswith("closed"):
-        return True
-
-    if "cancel" in state:
-        return True
-
-    return False
-
-
-def calc_sla_remaining_days(ticket_age_days):
-    """
-    EAST backlog target = 5 business days.
-    """
-    try:
-        return 5 - int(ticket_age_days)
-    except Exception:
-        return 0
-
-
-def calc_priority_score(row):
-    """
-    Higher score = needs more attention.
-    """
-    p_rank = priority_rank(row.get("priority", ""))
-
-    try:
-        age = float(row.get("ticket_age_days", 0))
-    except Exception:
-        age = 0
-
-    try:
-        inactivity = float(row.get("inactivity_days", 0))
-    except Exception:
-        inactivity = 0
-
-    priority_weight = {
-        1: 3.0,
-        2: 2.5,
-        3: 2.0,
-        4: 1.2,
-        5: 1.0,
-        6: 0.5,
-    }.get(p_rank, 0.5)
-
-    age_weight = min(age / 10, 4)
-    inactivity_weight = min(inactivity / 5, 3)
-
-    return round(priority_weight + age_weight + inactivity_weight, 2)
-
-
-# ============================================================
-# SERVICENOW API
-# ============================================================
-
-def get_auth():
-    if not USERNAME or not PASSWORD or PASSWORD == "PASTE_YOUR_PASSWORD_HERE":
-        return None
-
-    return HTTPBasicAuth(USERNAME, PASSWORD)
-
-
-def snow_get_records(table_name, encoded_query, fields, max_records=5000):
-    """
-    Generic ServiceNow Table API pull with pagination.
-    """
-    auth = get_auth()
-
-    if auth is None:
-        st.error(
-            "ServiceNow password/token is missing. "
-            "Edit the code and paste it into PASSWORD = \"PASTE_YOUR_PASSWORD_HERE\"."
-        )
-        return []
-
-    url = f"{INSTANCE_URL}/api/now/table/{table_name}"
-
-    all_records = []
-    limit = 500
-    offset = 0
-
-    while len(all_records) < max_records:
-        params = {
-            "sysparm_query": encoded_query,
-            "sysparm_fields": ",".join(fields),
-            "sysparm_display_value": "all",
-            "sysparm_exclude_reference_link": "true",
-            "sysparm_limit": limit,
-            "sysparm_offset": offset,
-        }
-
-        try:
-            response = requests.get(
-                url,
-                params=params,
-                auth=auth,
-                headers={"Accept": "application/json"},
-                timeout=60,
-            )
-
-            if response.status_code != 200:
-                st.error(
-                    f"ServiceNow API error for table {table_name}: "
-                    f"{response.status_code} - {response.text[:800]}"
-                )
-                break
-
-            payload = response.json()
-            records = payload.get("result", [])
-
-            if not records:
-                break
-
-            all_records.extend(records)
-
-            if len(records) < limit:
-                break
-
-            offset += limit
-
-        except Exception as e:
-            st.error(f"ServiceNow API request failed for {table_name}: {e}")
-            break
-
-    return all_records[:max_records]
-
-
-@st.cache_data(show_spinner=False, ttl=300)
-def fetch_east_records(max_records=5000):
-    """
-    Main data pull.
-
-    Critical fix:
-    Pulls from TASK because TASK contains both:
-    - sc_req_item / RITM
-    - incident / INC
-
-    This prevents incidents under IT Supp: EAST - Leads from being missed.
-    """
-
-    fields = [
-        "number",
-        "sys_class_name",
-        "assigned_to",
-        "assignment_group",
-        "state",
-        "priority",
-        "opened_at",
-        "sys_created_on",
-        "sys_updated_on",
-        "closed_at",
-        "active",
-        "short_description",
-        "cmdb_ci",
-    ]
-
-    records_all = []
-
-    # Pull the exact EAST queues by each class.
-    # We intentionally include both sc_req_item and incident.
-    for group in EAST_GROUPS:
-        for ticket_class in ["sc_req_item", "incident"]:
-            query = (
-                f"sys_class_name={ticket_class}"
-                f"^assignment_group.name={group}"
-                f"^ORDERBYDESCsys_updated_on"
-            )
-
-            records = snow_get_records(
-                table_name="task",
-                encoded_query=query,
-                fields=fields,
-                max_records=max_records,
-            )
-
-            records_all.extend(records)
-
-    # Fallback if dot-walk on assignment_group.name does not return anything.
-    # This pulls active/latest task records for both classes and filters in pandas.
-    if len(records_all) == 0:
-        fallback_query = (
-            "sys_class_nameINsc_req_item,incident"
-            "^ORDERBYDESCsys_updated_on"
-        )
-
-        records_all = snow_get_records(
-            table_name="task",
-            encoded_query=fallback_query,
-            fields=fields,
-            max_records=max_records,
-        )
-
-    rows = []
-
-    for rec in records_all:
-        number = safe_display_value(rec.get("number"))
-        sys_class_name = safe_raw_value(rec.get("sys_class_name")) or safe_display_value(rec.get("sys_class_name"))
-
-        assigned_to = safe_display_value(rec.get("assigned_to"))
-        assignment_group = safe_display_value(rec.get("assignment_group"))
-        state = safe_display_value(rec.get("state"))
-        priority = normalize_priority(rec.get("priority"))
-
-        opened_raw = safe_display_value(rec.get("opened_at")) or safe_display_value(rec.get("sys_created_on"))
-        updated_raw = safe_display_value(rec.get("sys_updated_on"))
-
-        opened_dt = parse_datetime(opened_raw)
-        updated_dt = parse_datetime(updated_raw)
-
-        # Keep only EAST assignment groups.
-        if assignment_group not in EAST_GROUPS:
-            continue
-
-        # Exclude fully closed/cancelled.
-        # Keep Resolved because user report includes resolved incidents.
-        if is_closed_or_cancelled(state):
-            continue
-
-        if number.startswith("INC") or "incident" in str(sys_class_name).lower():
-            ticket_type = "INC"
-            source = "incident"
-        else:
-            ticket_type = "RITM"
-            source = "sc_req_item"
-
-        level = map_level_from_group(assignment_group)
-
-        ticket_age_days = business_days_between(opened_dt)
-        inactivity_days = business_days_between(updated_dt)
-
-        row = {
-            "ticket_type": ticket_type,
-            "number": number,
-            "level": level,
-            "assigned_to": assigned_to,
-            "assignment_group": assignment_group,
-            "priority": priority,
-            "state": state,
-            "open_date": opened_dt,
-            "last_updated": updated_dt,
-            "ticket_age_days": ticket_age_days,
-            "inactivity_days": inactivity_days,
-            "sla_remaining_days": calc_sla_remaining_days(ticket_age_days),
-            "age_bucket": age_bucket(ticket_age_days),
-            "source": source,
-            "short_description": safe_display_value(rec.get("short_description")),
-            "configuration_item": safe_display_value(rec.get("cmdb_ci")),
-        }
-
-        row["priority_score"] = calc_priority_score(row)
-
-        rows.append(row)
-
-    df = pd.DataFrame(rows)
-
-    if df.empty:
-        return df
-
-    # Remove duplicate tickets caused by multi-query pull.
-    df = df.drop_duplicates(subset=["number"], keep="first")
-
-    df = df.sort_values(
-        by=["priority_score", "ticket_age_days", "inactivity_days"],
-        ascending=[False, False, False],
-    ).reset_index(drop=True)
-
-    return df
-
-
-# ============================================================
-# HEADER
-# ============================================================
-
+AGE_LOOKUP = [
+    (0, 1),
+    (3, 2),
+    (7, 4),
+    (14, 6),
+    (30, 8),
+    (60, 9),
+    (90, 10)
+]
+
+INACTIVITY_LOOKUP = [
+    (0, 1),
+    (2, 3),
+    (5, 5),
+    (10, 7),
+    (20, 9),
+    (30, 10)
+]
+
+REASSIGN_LOOKUP = [
+    (0, 1),
+    (1, 3),
+    (2, 5),
+    (4, 7),
+    (6, 9),
+    (8, 10)
+]
+
+PRIORITY_LOOKUP = {
+    "Low": 3,
+    "Medium": 6,
+    "High": 9,
+    "Critical": 10
+}
+
+SKILL_LOOKUP = {
+    "Strong Match": 1,
+    "Good": 5,
+    "Mismatch": 9,
+    "Severe Mismatch": 10
+}
+
+REQUESTER_LOOKUP = {
+    "Individual": 3,
+    "Manager": 5,
+    "Director": 8,
+    "VP+": 10
+}
+
+def risk_level(score_0_10: float) -> str:
+    if score_0_10 <= 4.0:
+        return "Low"
+    elif score_0_10 <= 7.0:
+        return "Medium"
+    return "High"
+
+def intervention_label_from_weighted(score_0_10: float) -> str:
+    if score_0_10 >= 7.1:
+        return "🔴 Immediate"
+    if score_0_10 >= 6.0:
+        return "🟠 High Risk"
+    if score_0_10 >= 4.1:
+        return "🟡 Watch"
+    return "✅ Normal"
+
+# ✅ FIXED: this now uses renamed column "Final Score"
+def highlight_rows_weighted(row):
+    s = float(row["Final Score"])
+    if s >= 7.1:
+        return ["background-color:#cc0000;color:white"] * len(row)
+    if s >= 6.0:
+        return ["background-color:#ff704d"] * len(row)
+    if s >= 4.1:
+        return ["background-color:#fff2cc"] * len(row)
+    return [""] * len(row)
+
+# =============================
+# UI
+# =============================
+st.set_page_config(layout="wide")
 st.title("🎯 EAST Ticket Lifecycle Dashboard ✅")
+st.caption(f"Last Refresh: {pd.Timestamp.now().strftime('%d %b %Y, %I:%M %p')}")
 
-st.caption(f"Last Refresh: {datetime.now().strftime('%d %b %Y, %I:%M %p')}")
-
-control_col1, control_col2, control_col3 = st.columns([3, 1.3, 1])
-
-with control_col1:
-    max_tickets = st.selectbox(
-        "Max tickets to load",
-        [500, 1000, 2000, 5000],
-        index=3,
-    )
-
-with control_col2:
-    east_team_only = st.checkbox("Show only EAST team-owned tickets", value=False)
-
-with control_col3:
-    st.write("")
-    st.write("")
+top_col1, top_col2, top_col3 = st.columns([3, 1, 1])
+with top_col1:
+    max_to_load = st.selectbox("Max tickets to load", [500, 1000, 2000, 5000, 10000], index=3)
+with top_col2:
+    show_team_only = st.checkbox("Show only EAST team-owned tickets", value=False)
+with top_col3:
     if st.button("🔄 Refresh now"):
         st.cache_data.clear()
         st.rerun()
 
+# =============================
+# HELPERS
+# =============================
+def clean_display(x):
+    if isinstance(x, dict):
+        return x.get("display_value", "") or x.get("value", "") or ""
+    if x is None:
+        return ""
+    return str(x)
 
-# ============================================================
+def map_priority(p):
+    p = str(p).lower()
+    if p.startswith("1") or "critical" in p:
+        return "Critical"
+    if p.startswith("2") or "high" in p:
+        return "High"
+    if p.startswith("3") or "moderate" in p or "medium" in p:
+        return "Medium"
+    if p.startswith("4") or "low" in p:
+        return "Low"
+    return "Other"
+
+def level_from_group(g):
+    g = str(g)
+    return "L2" if "Leads" in g else "L1"
+
+def age_bucket(days):
+    if pd.isna(days):
+        return "Unknown"
+    d = int(days)
+    if d <= 5:
+        return "NEW"
+    if d <= 14:
+        return "AGING"
+    if d <= 30:
+        return "STALE"
+    return "OLD"
+
+def score_from_lookup(value: float, lookup_list):
+    value = float(value)
+    best = lookup_list[0][1]
+    for min_v, sc in lookup_list:
+        if value >= float(min_v):
+            best = sc
+        else:
+            break
+    return int(best)
+
+def normalize_skill(x: str) -> str:
+    x = str(x).strip()
+    if x in SKILL_LOOKUP:
+        return x
+    low = x.lower()
+    if "severe" in low:
+        return "Severe Mismatch"
+    if "mismatch" in low:
+        return "Mismatch"
+    if "strong" in low:
+        return "Strong Match"
+    return "Good"
+
+def normalize_requester_role(x: str) -> str:
+    x = str(x).strip()
+    if x in REQUESTER_LOOKUP:
+        return x
+    low = x.lower()
+    if "vp" in low:
+        return "VP+"
+    if "director" in low:
+        return "Director"
+    if "manager" in low:
+        return "Manager"
+    return "Individual"
+
+# ✅ Business days only (Mon–Fri). Holidays are NOT excluded in this version.
+def business_days_between(start_ts, end_ts):
+    if pd.isna(start_ts) or pd.isna(end_ts):
+        return 0.0
+    start_date = pd.Timestamp(start_ts).date()
+    end_date = pd.Timestamp(end_ts).date()
+    if end_date <= start_date:
+        return 0.0
+    return float(np.busday_count(start_date, end_date))
+
+def plain_english_reason(row):
+    reasons = []
+
+    if row["ticket_age_days"] >= 90:
+        reasons.append("very old ticket")
+    elif row["ticket_age_days"] >= 30:
+        reasons.append("older backlog item")
+    elif row["ticket_age_days"] >= 14:
+        reasons.append("aging ticket")
+
+    if row["inactivity_days"] >= 30:
+        reasons.append("has not been updated for a long time")
+    elif row["inactivity_days"] >= 10:
+        reasons.append("has been inactive for many days")
+    elif row["inactivity_days"] >= 5:
+        reasons.append("has not been updated recently")
+
+    if row["priority"] == "Critical":
+        reasons.append("critical priority")
+    elif row["priority"] == "High":
+        reasons.append("high priority")
+
+    if row["reassignment_count"] >= 6:
+        reasons.append("has bounced between queues many times")
+    elif row["reassignment_count"] >= 2:
+        reasons.append("has been reassigned multiple times")
+
+    if row["skill_alignment"] == "Severe Mismatch":
+        reasons.append("appears assigned to the wrong skill group")
+    elif row["skill_alignment"] == "Mismatch":
+        reasons.append("may not match the current owner’s skill area")
+
+    if row["requester_impact"] in ["Director", "VP+"]:
+        reasons.append("has higher business visibility")
+    elif row["requester_impact"] == "Manager":
+        reasons.append("has manager-level requester visibility")
+
+    if not reasons:
+        return "No major risk signals; standard queue handling."
+
+    return ", ".join(reasons).capitalize() + "."
+
+# =============================
 # LOAD DATA
-# ============================================================
+# =============================
+@st.cache_data(show_spinner=True)
+def load_table(table_name: str, query: str, fields: str, max_rows: int) -> pd.DataFrame:
+    url = f"{INSTANCE_URL}/api/now/table/{table_name}"
+    page_size = 2000
+    pages = max(1, math.ceil(max_rows / page_size))
+    all_rows = []
 
-with st.spinner("Loading EAST RITMs and Incidents from ServiceNow..."):
-    df = fetch_east_records(max_records=max_tickets)
+    for i in range(pages):
+        offset = i * page_size
+        params = {
+            "sysparm_query": query,
+            "sysparm_display_value": "true",
+            "sysparm_exclude_reference_link": "true",
+            "sysparm_limit": str(min(page_size, max_rows - offset)),
+            "sysparm_offset": str(offset),
+            "sysparm_fields": fields
+        }
+
+        r = requests.get(
+            url,
+            params=params,
+            auth=(USERNAME, PASSWORD),
+            headers={"Accept": "application/json"},
+            timeout=60
+        )
+
+        if r.status_code >= 400:
+            try:
+                err = r.json()
+            except Exception:
+                err = r.text
+            raise RuntimeError(f"ServiceNow API Error ({table_name}) {r.status_code}: {err}")
+
+        chunk = r.json().get("result", [])
+        if not chunk:
+            break
+
+        all_rows.extend(chunk)
+
+        if len(chunk) < page_size:
+            break
+
+    return pd.DataFrame(all_rows)
+
+# =============================
+# PULL RITMS + INCIDENTS
+# =============================
+ritm_query = (
+    "active=true"
+    "^assignment_group.nameIN"
+    "IT Supp: EAST - Delivery,IT Supp: EAST - Leads,IT Supp: System Access Requests"
+)
+
+incident_query = (
+    active=true"
+    "^assignment_group.nameIN"
+    "IT Supp: EAST - Delivery,IT Supp: EAST - Leads,IT Supp: System Access Requests"
+)
+
+common_fields = "number,assignment_group,assigned_to,priority,sys_created_on,sys_updated_on"
+
+df_ritm = load_table("sc_req_item", ritm_query, common_fields, max_to_load)
+df_inc = load_table("incident", incident_query, common_fields, max_to_load)
+
+if not df_ritm.empty:
+    df_ritm["ticket_type"] = "RITM"
+if not df_inc.empty:
+    df_inc["ticket_type"] = "INC"
+
+df = pd.concat([df_ritm, df_inc], ignore_index=True)
 
 if df.empty:
-    st.warning(
-        "No EAST records returned. Please verify password/token, ServiceNow API access, "
-        "and access to task / sc_req_item / incident tables."
-    )
+    st.warning("No tickets returned. Check credentials, access, or query scope.")
     st.stop()
 
-if east_team_only:
-    df = df[df["assigned_to"].isin(EAST_TEAM)].copy()
+for col in ["number", "assignment_group", "assigned_to", "priority", "sys_created_on", "sys_updated_on", "ticket_type"]:
+    if col not in df.columns:
+        df[col] = ""
 
+df["assignment_group"] = df["assignment_group"].apply(clean_display)
+df["assigned_to"] = df["assigned_to"].apply(clean_display)
+df["priority"] = df["priority"].apply(map_priority)
 
-# ============================================================
-# OVERVIEW METRICS
-# ============================================================
+df["open_date"] = pd.to_datetime(df["sys_created_on"], errors="coerce")
+df["updated"] = pd.to_datetime(df["sys_updated_on"], errors="coerce")
 
-total_tickets = len(df)
-l1_tickets = int((df["level"] == "L1").sum())
-l2_tickets = int((df["level"] == "L2").sum())
-ritm_count = int((df["ticket_type"] == "RITM").sum())
-inc_count = int((df["ticket_type"] == "INC").sum())
-not_updated_count = int((df["inactivity_days"] > NOT_UPDATED_DAYS).sum())
-avg_time_taken = round(float(df["ticket_age_days"].mean()), 2) if len(df) else 0
+# ✅ Business days only
+today_ts = pd.Timestamp.now()
+df["ticket_age_days"] = df["open_date"].apply(lambda x: business_days_between(x, today_ts)).round(2)
+df["inactivity_days"] = df["updated"].apply(lambda x: business_days_between(x, today_ts)).round(2)
 
-st.markdown("## 📊 Overview")
+df["level"] = df["assignment_group"].apply(level_from_group)
+df["age_bucket"] = df["ticket_age_days"].apply(age_bucket)
 
-metric_col1, metric_col2, metric_col3, metric_col4, metric_col5 = st.columns(5)
+df_backlog = df.copy()
+df_team = df_backlog[df_backlog["assigned_to"].isin(EAST_TEAM)].copy()
+df_view_base = df_team if show_team_only else df_backlog
 
-metric_col1.metric("Total Tickets", total_tickets)
-metric_col2.metric("L1 Tickets", l1_tickets)
-metric_col3.metric("L2 Tickets", l2_tickets)
-metric_col4.metric(f"Not Updated >{NOT_UPDATED_DAYS} Days", not_updated_count)
-metric_col5.metric("Avg Time Taken (Days)", avg_time_taken)
+# =============================
+# WEIGHTED MODEL SCORING
+# =============================
+if "reassignment_count" not in df_backlog.columns:
+    df_backlog["reassignment_count"] = 0
+if "skill_alignment" not in df_backlog.columns:
+    df_backlog["skill_alignment"] = "Good"
+if "requester_impact" not in df_backlog.columns:
+    df_backlog["requester_impact"] = "Individual"
 
-metric_col6, metric_col7 = st.columns(2)
+df_backlog["skill_alignment"] = df_backlog["skill_alignment"].apply(normalize_skill)
+df_backlog["requester_impact"] = df_backlog["requester_impact"].apply(normalize_requester_role)
 
-metric_col6.metric("RITM Count", ritm_count)
-metric_col7.metric("INC Count", inc_count)
+df_backlog["age_score_0_10"] = df_backlog["ticket_age_days"].apply(lambda x: score_from_lookup(x, AGE_LOOKUP))
+df_backlog["inactivity_score_0_10"] = df_backlog["inactivity_days"].apply(lambda x: score_from_lookup(x, INACTIVITY_LOOKUP))
+df_backlog["priority_score_0_10"] = df_backlog["priority"].apply(lambda p: int(PRIORITY_LOOKUP.get(p, 0)))
+df_backlog["reassign_score_0_10"] = df_backlog["reassignment_count"].apply(lambda x: score_from_lookup(x, REASSIGN_LOOKUP))
+df_backlog["skill_score_0_10"] = df_backlog["skill_alignment"].apply(lambda s: int(SKILL_LOOKUP.get(s, 5)))
+df_backlog["requester_score_0_10"] = df_backlog["requester_impact"].apply(lambda r: int(REQUESTER_LOOKUP.get(r, 3)))
+
+df_backlog["age_weighted"] = df_backlog["age_score_0_10"] * WEIGHTS["age"]
+df_backlog["inactivity_weighted"] = df_backlog["inactivity_score_0_10"] * WEIGHTS["inactivity"]
+df_backlog["priority_weighted"] = df_backlog["priority_score_0_10"] * WEIGHTS["priority"]
+df_backlog["reassign_weighted"] = df_backlog["reassign_score_0_10"] * WEIGHTS["reassign"]
+df_backlog["skill_weighted"] = df_backlog["skill_score_0_10"] * WEIGHTS["skill"]
+df_backlog["requester_weighted"] = df_backlog["requester_score_0_10"] * WEIGHTS["requester"]
+
+df_backlog["final_score"] = (
+    df_backlog["age_weighted"]
+    + df_backlog["inactivity_weighted"]
+    + df_backlog["priority_weighted"]
+    + df_backlog["reassign_weighted"]
+    + df_backlog["skill_weighted"]
+    + df_backlog["requester_weighted"]
+).round(2)
+
+df_backlog["risk_level"] = df_backlog["final_score"].apply(risk_level)
+df_backlog["intervention"] = df_backlog["final_score"].apply(intervention_label_from_weighted)
+df_backlog["why_flagged"] = df_backlog.apply(plain_english_reason, axis=1)
+
+# sort by urgency
+df_backlog = df_backlog.sort_values(
+    by=["final_score", "inactivity_days", "ticket_age_days"],
+    ascending=[False, False, False]
+).reset_index(drop=True)
+
+counts = df_backlog["intervention"].value_counts()
+immediate_cnt = int(counts.get("🔴 Immediate", 0))
+highrisk_cnt = int(counts.get("🟠 High Risk", 0))
+watch_cnt = int(counts.get("🟡 Watch", 0))
+normal_cnt = int(counts.get("✅ Normal", 0))
+
+# =============================
+# OVERVIEW
+# =============================
+st.subheader("📊 Overview")
+
+total = len(df_view_base)
+l1 = len(df_view_base[df_view_base["level"] == "L1"])
+l2 = len(df_view_base[df_view_base["level"] == "L2"])
+not_updated = len(df_view_base[df_view_base["inactivity_days"] > NOT_UPDATED_DAYS])
+avg_time = round(df_view_base["ticket_age_days"].mean(), 2) if total else 0
+
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Total Tickets", total)
+c2.metric("L1 Tickets", l1)
+c3.metric("L2 Tickets", l2)
+c4.metric("Not Updated >2 Days", not_updated)
+c5.metric("Avg Time Taken (Days)", avg_time)
 
 with st.expander("🔍 Backlog count explanation (why numbers differ)"):
-    st.markdown(
-        """
-        This dashboard now includes both **RITM** and **Incident** tickets.
+    st.write("Backlog (ALL open RITMs + EAST Delivery incidents):", len(df_backlog))
+    st.write("Team-owned (Assigned to EAST team only):", len(df_team))
+    st.write("Unassigned or assigned outside EAST team:", len(df_backlog) - len(df_team))
+    st.caption("Ticket age and inactivity are now calculated using business days (Mon–Fri only). Company holidays are not excluded in this version.")
 
-        **Included ticket classes**
-        - RITM / `sc_req_item`
-        - INC / `incident`
-
-        **L1 assignment groups**
-        - IT Supp: EAST - Delivery
-        - IT Supp: System Access Requests
-
-        **L2 assignment group**
-        - IT Supp: EAST - Leads
-
-        This fixes the earlier issue where incidents in **IT Supp: EAST - Leads**
-        were missing from total backlog and individual backlog views.
-        """
-    )
-
-
-# ============================================================
-# VIEW SELECTOR
-# ============================================================
-
-view = st.radio(
+# =============================
+# TABS
+# =============================
+tab = st.radio(
     "",
     [
         "All Tickets",
         "L1 Tickets",
         "L2 Tickets",
-        "Incidents",
         "Individual Report",
         "Not Updated",
         "Needs Action",
-        "Management Intervention",
+        "Management Intervention"
     ],
-    horizontal=True,
+    horizontal=True
 )
 
+standard_cols = [
+    "ticket_type", "number", "level", "assigned_to", "assignment_group", "priority",
+    "open_date", "ticket_age_days", "inactivity_days", "age_bucket"
+]
 
-# ============================================================
-# FILTER VIEW
-# ============================================================
+# =============================
+# TAB VIEWS
+# =============================
+if tab == "All Tickets":
+    st.dataframe(df_view_base[standard_cols], use_container_width=True, hide_index=True)
 
-display_df = df.copy()
+elif tab == "L1 Tickets":
+    d = df_view_base[df_view_base["level"] == "L1"]
+    st.dataframe(d[standard_cols], use_container_width=True, hide_index=True)
 
-if view == "L1 Tickets":
-    display_df = display_df[display_df["level"] == "L1"].copy()
+elif tab == "L2 Tickets":
+    d = df_view_base[df_view_base["level"] == "L2"]
+    st.dataframe(d[standard_cols], use_container_width=True, hide_index=True)
 
-elif view == "L2 Tickets":
-    display_df = display_df[display_df["level"] == "L2"].copy()
+elif tab == "Not Updated":
+    d = df_view_base[df_view_base["inactivity_days"] > NOT_UPDATED_DAYS]
+    st.dataframe(d[standard_cols], use_container_width=True, hide_index=True)
 
-elif view == "Incidents":
-    display_df = display_df[display_df["ticket_type"] == "INC"].copy()
+elif tab == "Needs Action":
+    d = df_view_base[
+        (df_view_base["inactivity_days"] > NOT_UPDATED_DAYS) |
+        (df_view_base["ticket_age_days"] > 30)
+    ]
+    st.dataframe(d[standard_cols], use_container_width=True, hide_index=True)
 
-elif view == "Not Updated":
-    display_df = display_df[display_df["inactivity_days"] > NOT_UPDATED_DAYS].copy()
+elif tab == "Individual Report":
+    st.subheader("👤 Individual Report")
 
-elif view == "Needs Action":
-    display_df = display_df[
-        (display_df["priority"].isin(["1 - Critical", "2 - High", "3 - Moderate", "Critical", "High", "Medium"]))
-        | (display_df["inactivity_days"] > NOT_UPDATED_DAYS)
-        | (display_df["age_bucket"].isin(["STALE", "OLD"]))
-    ].copy()
+    people = sorted(df_team["assigned_to"].dropna().unique().tolist())
+    person = st.selectbox("Select team member", people)
 
-elif view == "Management Intervention":
-    display_df = display_df[
-        (display_df["age_bucket"].isin(["OLD"]))
-        | (display_df["inactivity_days"] >= 5)
-        | (display_df["priority"].isin(["1 - Critical", "2 - High", "Critical", "High"]))
-    ].copy()
+    d = df_team[df_team["assigned_to"] == person].copy()
 
+    i1, i2, i3, i4 = st.columns(4)
+    i1.metric("Tickets", len(d))
+    i2.metric("Avg time taken (days)", round(d["ticket_age_days"].mean(), 2) if len(d) else 0)
+    i3.metric("Not touched >2 days", len(d[d["inactivity_days"] > NOT_UPDATED_DAYS]))
+    i4.metric("Old (31+)", len(d[d["ticket_age_days"] > 30]))
 
-# ============================================================
-# INDIVIDUAL REPORT
-# ============================================================
+    st.subheader("🚨 Needs Attention (>2 Days Not Updated)")
+    d_flag = d[d["inactivity_days"] > NOT_UPDATED_DAYS]
+    if d_flag.empty:
+        st.success("✅ No tickets pending update >2 days")
+    else:
+        st.dataframe(d_flag[standard_cols], use_container_width=True, hide_index=True)
 
-if view == "Individual Report":
-    st.markdown("## 👤 Individual Backlog Report")
-
-    individual_df = (
-        df.groupby("assigned_to", dropna=False)
-        .agg(
-            total_tickets=("number", "count"),
-            ritm_count=("ticket_type", lambda x: int((x == "RITM").sum())),
-            incident_count=("ticket_type", lambda x: int((x == "INC").sum())),
-            l1_count=("level", lambda x: int((x == "L1").sum())),
-            l2_count=("level", lambda x: int((x == "L2").sum())),
-            not_updated=("inactivity_days", lambda x: int((x > NOT_UPDATED_DAYS).sum())),
-            avg_age_days=("ticket_age_days", "mean"),
-            max_age_days=("ticket_age_days", "max"),
-            new_count=("age_bucket", lambda x: int((x == "NEW").sum())),
-            aging_count=("age_bucket", lambda x: int((x == "AGING").sum())),
-            stale_count=("age_bucket", lambda x: int((x == "STALE").sum())),
-            old_count=("age_bucket", lambda x: int((x == "OLD").sum())),
-        )
-        .reset_index()
-        .rename(columns={"assigned_to": "Assignee"})
-    )
-
-    individual_df["avg_age_days"] = individual_df["avg_age_days"].round(2)
-
-    individual_df = individual_df.sort_values(
-        by=["total_tickets", "old_count", "not_updated"],
-        ascending=[False, False, False],
-    )
-
-    st.dataframe(
-        individual_df,
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    st.download_button(
-        "⬇️ Download Individual Report CSV",
-        individual_df.to_csv(index=False).encode("utf-8"),
-        file_name="east_individual_backlog_report.csv",
-        mime="text/csv",
-    )
+    st.subheader("📋 All Tickets for Selected Member")
+    st.dataframe(d[standard_cols], use_container_width=True, hide_index=True)
 
 else:
-    st.markdown(f"## {view}")
+    # =============================
+    # MANAGEMENT INTERVENTION
+    # =============================
+    st.subheader("🚨 Management Intervention")
+    st.caption("Weighted model using Chris lookups + weights (0–10 score). Includes RITMs + active incidents assigned to EAST Delivery.")
 
-    columns_to_show = [
-        "ticket_type",
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("🔴 Immediate", immediate_cnt)
+    k2.metric("🟠 High Risk", highrisk_cnt)
+    k3.metric("🟡 Watch", watch_cnt)
+    k4.metric("✅ Normal", normal_cnt)
+
+    with st.expander("📊 How the Weighted Score is Calculated (Chris Model)", expanded=False):
+        st.markdown("**Final Score (0–10) = SUM(Scoreᵢ × Weightᵢ)**")
+        st.code(f"""
+Weights:
+- Ticket Age: {WEIGHTS['age']*100:.0f}%
+- Inactivity: {WEIGHTS['inactivity']*100:.0f}%
+- Priority: {WEIGHTS['priority']*100:.0f}%
+- Reassignment Count: {WEIGHTS['reassign']*100:.0f}%
+- Skill Alignment: {WEIGHTS['skill']*100:.0f}%
+- Requester Impact: {WEIGHTS['requester']*100:.0f}%
+
+Risk bands:
+- 0–4.0 = Low
+- 4.1–7.0 = Medium
+- 7.1–10.0 = High
+
+Business-day logic:
+- Ticket Age and Inactivity exclude weekends (Mon–Fri only)
+- Company holidays are not excluded in this version
+""")
+
+    # Top 10
+    st.subheader("🔥 Top 10 tickets (ranked by weighted score)")
+    top10_display = df_backlog[[
+        "final_score",
         "number",
-        "level",
+        "ticket_type",
         "assigned_to",
         "assignment_group",
         "priority",
-        "state",
-        "open_date",
-        "last_updated",
         "ticket_age_days",
         "inactivity_days",
-        "sla_remaining_days",
-        "age_bucket",
-        "source",
-    ]
+        "intervention",
+        "why_flagged"
+    ]].head(10).copy()
 
-    show_df = display_df[columns_to_show].copy()
+    top10_display.rename(columns={
+        "final_score": "Final Score",
+        "number": "Ticket",
+        "ticket_type": "Type",
+        "assigned_to": "Assigned To",
+        "assignment_group": "Assignment Group",
+        "priority": "Priority",
+        "ticket_age_days": "Ticket Age (days)",
+        "inactivity_days": "Inactivity (days)",
+        "intervention": "Intervention",
+        "why_flagged": "Why Flagged"
+    }, inplace=True)
+
+    st.dataframe(top10_display, use_container_width=True, hide_index=True)
+
+    # Full table
+    st.subheader("📋 All Backlog by weighted intervention score")
+
+    full_display = df_backlog[[
+        "final_score",
+        "number",
+        "ticket_type",
+        "assigned_to",
+        "assignment_group",
+        "priority",
+        "ticket_age_days",
+        "inactivity_days",
+        "intervention",
+        "risk_level",
+        "why_flagged"
+    ]].copy()
+
+    full_display.rename(columns={
+        "final_score": "Final Score",
+        "number": "Ticket",
+        "ticket_type": "Type",
+        "assigned_to": "Assigned To",
+        "assignment_group": "Assignment Group",
+        "priority": "Priority",
+        "ticket_age_days": "Ticket Age (days)",
+        "inactivity_days": "Inactivity (days)",
+        "intervention": "Intervention",
+        "risk_level": "Risk Level",
+        "why_flagged": "Why Flagged"
+    }, inplace=True)
 
     st.dataframe(
-        show_df,
+        full_display.style.apply(highlight_rows_weighted, axis=1),
         use_container_width=True,
-        hide_index=True,
+        hide_index=True
     )
-
-    st.download_button(
-        f"⬇️ Download {view} CSV",
-        show_df.to_csv(index=False).encode("utf-8"),
-        file_name=f"east_{view.lower().replace(' ', '_')}.csv",
-        mime="text/csv",
-    )
-
-
-# ============================================================
-# VALIDATION SECTION
-# ============================================================
-
-with st.expander("✅ Data validation summary"):
-    validation_df = pd.DataFrame(
-        [
-            {"Metric": "Total Tickets", "Count": len(df)},
-            {"Metric": "RITM / sc_req_item", "Count": int((df["ticket_type"] == "RITM").sum())},
-            {"Metric": "Incident", "Count": int((df["ticket_type"] == "INC").sum())},
-            {"Metric": "L1", "Count": int((df["level"] == "L1").sum())},
-            {"Metric": "L2", "Count": int((df["level"] == "L2").sum())},
-            {"Metric": f"Not Updated > {NOT_UPDATED_DAYS} Days", "Count": int((df["inactivity_days"] > NOT_UPDATED_DAYS).sum())},
-        ]
-    )
-
-    st.dataframe(validation_df, use_container_width=True, hide_index=True)
-
-    st.markdown("### Ticket type split")
-    type_split = (
-        df.groupby(["ticket_type", "source"])
-        .size()
-        .reset_index(name="count")
-        .sort_values("count", ascending=False)
-    )
-
-    st.dataframe(type_split, use_container_width=True, hide_index=True)
-
-    st.markdown("### Assignment group split")
-    group_split = (
-        df.groupby(["assignment_group", "level", "ticket_type"])
-        .size()
-        .reset_index(name="count")
-        .sort_values(["assignment_group", "level", "ticket_type"])
-    )
-
-    st.dataframe(group_split, use_container_width=True, hide_index=True)
-
-    st.markdown("### Assignee split")
-    assignee_split = (
-        df.groupby(["assigned_to", "ticket_type"])
-        .size()
-        .reset_index(name="count")
-        .sort_values(["assigned_to", "ticket_type"])
-    )
-
-    st.dataframe(assignee_split, use_container_width=True, hide_index=True)
-
-
-# ============================================================
-# FOOTER
-# ============================================================
-
-st.caption(
-    "EAST Ticket Lifecycle Dashboard | Includes active/open RITMs and Incidents from EAST L1/L2 assignment groups."
-)
