@@ -313,7 +313,7 @@ ritm_query = (
 )
 
 incident_query = (
-    active=true"
+    "active=true"
     "^assignment_group.nameIN"
     "IT Supp: EAST - Delivery,IT Supp: EAST - Leads,IT Supp: System Access Requests"
 )
