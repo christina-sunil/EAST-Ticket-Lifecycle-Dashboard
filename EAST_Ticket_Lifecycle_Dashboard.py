@@ -463,7 +463,31 @@ with b3:
             ]
         )
     )
+st.markdown("---")
+st.subheader("🚨 Tickets Needing Immediate Attention")
 
+top_attention = df_backlog[
+    df_backlog["final_score"] >= 7.1
+].head(5)
+
+if not top_attention.empty:
+    st.dataframe(
+        top_attention[
+            [
+                "number",
+                "assigned_to",
+                "assignment_group",
+                "ticket_age_days",
+                "inactivity_days",
+                "priority",
+                "why_flagged"
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True
+    )
+else:
+    st.success("No immediate-risk tickets found.")
 with st.expander("🔍 Backlog count explanation (why numbers differ)"):
     st.write("Backlog (ALL open RITMs + EAST Delivery incidents):", len(df_backlog))
     st.write("Team-owned (Assigned to EAST team only):", len(df_team))
