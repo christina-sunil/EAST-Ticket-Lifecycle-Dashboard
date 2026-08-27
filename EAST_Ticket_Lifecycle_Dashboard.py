@@ -503,7 +503,6 @@ a1.metric("NEW", new_count)
 a2.metric("AGING", aging_count)
 a3.metric("STALE", stale_count)
 a4.metric("OLD", old_count)
-a4.metric("OLD", old_count)
 
 st.markdown("---")
 st.subheader("🏆 Top 5 Oldest Tickets")
