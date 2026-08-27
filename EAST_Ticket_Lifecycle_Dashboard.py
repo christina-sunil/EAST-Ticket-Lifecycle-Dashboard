@@ -488,6 +488,21 @@ if not top_attention.empty:
     )
 else:
     st.success("No immediate-risk tickets found.")
+    
+st.markdown("---")
+st.subheader("📈 Ticket Aging Distribution")
+
+a1, a2, a3, a4 = st.columns(4)
+
+new_count = len(df_view_base[df_view_base["age_bucket"] == "NEW"])
+aging_count = len(df_view_base[df_view_base["age_bucket"] == "AGING"])
+stale_count = len(df_view_base[df_view_base["age_bucket"] == "STALE"])
+old_count = len(df_view_base[df_view_base["age_bucket"] == "OLD"])
+
+a1.metric("NEW", new_count)
+a2.metric("AGING", aging_count)
+a3.metric("STALE", stale_count)
+a4.metric("OLD", old_count)
 with st.expander("🔍 Backlog count explanation (why numbers differ)"):
     st.write("Backlog (ALL open RITMs + EAST Delivery incidents):", len(df_backlog))
     st.write("Team-owned (Assigned to EAST team only):", len(df_team))
