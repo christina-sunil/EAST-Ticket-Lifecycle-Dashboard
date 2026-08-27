@@ -503,6 +503,22 @@ a1.metric("NEW", new_count)
 a2.metric("AGING", aging_count)
 a3.metric("STALE", stale_count)
 a4.metric("OLD", old_count)
+
+age_chart = pd.DataFrame(
+    {
+        "Bucket": ["NEW", "AGING", "STALE", "OLD"],
+        "Count": [
+            new_count,
+            aging_count,
+            stale_count,
+            old_count
+        ]
+    }
+)
+
+st.bar_chart(
+    age_chart.set_index("Bucket")
+)
 with st.expander("🔍 Backlog count explanation (why numbers differ)"):
     st.write("Backlog (ALL open RITMs + EAST Delivery incidents):", len(df_backlog))
     st.write("Team-owned (Assigned to EAST team only):", len(df_team))
