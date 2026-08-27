@@ -161,7 +161,25 @@ def map_priority(p):
 
 def level_from_group(g):
     g = str(g)
-    return "L2" if "Leads" in g else "L1"
+
+    if "System Access Requests" in g:
+        return "Access"
+
+    if "Leads" in g:
+        return "L2"
+
+    if (
+        "System Admins" in g
+        or "ShareFile - CPQ" in g
+        or "Quote to Invoice" in g
+        or "Lead to Opp" in g
+        or "Mulesoft Product Support" in g
+        or "EA Shared Services" in g
+        or "CS/TS" in g
+    ):
+        return "L3"
+
+    return "L1"
 
 def age_bucket(days):
     if pd.isna(days):
