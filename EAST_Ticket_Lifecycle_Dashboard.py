@@ -20,7 +20,14 @@ EAST_TEAM = [
 EAST_GROUPS = [
     "IT Supp: EAST - Delivery",
     "IT Supp: EAST - Leads",
-    "IT Supp: System Access Requests"
+    "IT Supp: System Access Requests",
+    "IT Supp: System Admins",
+    "IT Supp: ShareFile - CPQ",
+    "IT Supp: Quote to Invoice",
+    "IT Supp: Lead to Opp",
+    "IT Supp: Mulesoft Product Support",
+    "IT Supp: EA Shared Services",
+    "IT Supp: CS/TS"
 ]
 
 NOT_UPDATED_DAYS = 2
@@ -309,13 +316,19 @@ def load_table(table_name: str, query: str, fields: str, max_rows: int) -> pd.Da
 ritm_query = (
     "active=true"
     "^assignment_group.nameIN"
-    "IT Supp: EAST - Delivery,IT Supp: EAST - Leads,IT Supp: System Access Requests"
+    "IT Supp: EAST - Delivery,IT Supp: EAST - Leads,IT Supp: System Access 
+    Requests,IT Supp: System Admins,IT Supp: ShareFile - CPQ,IT Supp: Quote 
+    to Invoice,IT Supp: Lead to Opp,IT Supp: Mulesoft Product Support,IT 
+    Supp: EA Shared Services,IT Supp: CS/TS"
 )
 
 incident_query = (
     "active=true"
     "^assignment_group.nameIN"
-    "IT Supp: EAST - Delivery,IT Supp: EAST - Leads,IT Supp: System Access Requests"
+    "IT Supp: EAST - Delivery,IT Supp: EAST - Leads,IT Supp: System Access 
+    Requests,IT Supp: System Admins,IT Supp: ShareFile - CPQ,IT Supp: Quote 
+    to Invoice,IT Supp: Lead to Opp,IT Supp: Mulesoft Product Support,IT 
+    Supp: EA Shared Services,IT Supp: CS/TS"
 )
 
 common_fields = "number,assignment_group,assigned_to,priority,sys_created_on,sys_updated_on"
