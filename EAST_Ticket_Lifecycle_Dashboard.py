@@ -440,17 +440,33 @@ normal_cnt = int(counts.get("✅ Normal", 0))
 st.subheader("📊 Overview")
 
 total = len(df_view_base)
+
 l1 = len(df_view_base[df_view_base["level"] == "L1"])
+
 l2 = len(df_view_base[df_view_base["level"] == "L2"])
-not_updated = len(df_view_base[df_view_base["inactivity_days"] > NOT_UPDATED_DAYS])
-avg_time = round(df_view_base["ticket_age_days"].mean(), 2) if total else 0
+
+access = len(df_view_base[df_view_base["level"] == "Access"])
+
+l3 = len(df_view_base[df_view_base["level"] == "L3"])
+
+not_updated = len(
+    df_view_base[
+        df_view_base["inactivity_days"] > NOT_UPDATED_DAYS
+    ]
+)
+
+avg_time = round(
+    df_view_base["ticket_age_days"].mean(),
+    2
+) if total else 0
 
 c1, c2, c3, c4, c5 = st.columns(5)
+
 c1.metric("Total Tickets", total)
-c2.metric("L1 Tickets", l1)
-c3.metric("L2 Tickets", l2)
-c4.metric("Not Updated >2 Days", not_updated)
-c5.metric("Avg Time Taken (Days)", avg_time)
+c2.metric("Access Tickets", access)
+c3.metric("L1 Tickets", l1)
+c4.metric("L2 Tickets", l2)
+c5.metric("L3 Tickets", l3)
 st.markdown("---")
 st.subheader("📊 Open Backlog Snapshot")
 
