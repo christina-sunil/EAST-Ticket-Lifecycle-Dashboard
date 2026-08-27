@@ -426,6 +426,43 @@ c2.metric("L1 Tickets", l1)
 c3.metric("L2 Tickets", l2)
 c4.metric("Not Updated >2 Days", not_updated)
 c5.metric("Avg Time Taken (Days)", avg_time)
+st.markdown("---")
+st.subheader("📊 Open Backlog Snapshot")
+
+b1, b2, b3 = st.columns(3)
+
+with b1:
+    st.metric(
+        "Access Requests",
+        len(
+            df_view_base[
+                df_view_base["assignment_group"]
+                == "IT Supp: System Access Requests"
+            ]
+        )
+    )
+
+with b2:
+    st.metric(
+        "L1 Delivery",
+        len(
+            df_view_base[
+                df_view_base["assignment_group"]
+                == "IT Supp: EAST - Delivery"
+            ]
+        )
+    )
+
+with b3:
+    st.metric(
+        "L2 Leads",
+        len(
+            df_view_base[
+                df_view_base["assignment_group"]
+                == "IT Supp: EAST - Leads"
+            ]
+        )
+    )
 
 with st.expander("🔍 Backlog count explanation (why numbers differ)"):
     st.write("Backlog (ALL open RITMs + EAST Delivery incidents):", len(df_backlog))
