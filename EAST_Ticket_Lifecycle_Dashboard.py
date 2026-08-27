@@ -503,6 +503,31 @@ a1.metric("NEW", new_count)
 a2.metric("AGING", aging_count)
 a3.metric("STALE", stale_count)
 a4.metric("OLD", old_count)
+a4.metric("OLD", old_count)
+
+st.markdown("---")
+st.subheader("🏆 Top 5 Oldest Tickets")
+
+oldest_tickets = (
+    df_view_base
+    .sort_values("ticket_age_days", ascending=False)
+    .head(5)
+)
+
+st.dataframe(
+    oldest_tickets[
+        [
+            "number",
+            "assigned_to",
+            "assignment_group",
+            "priority",
+            "ticket_age_days",
+            "age_bucket"
+        ]
+    ],
+    use_container_width=True,
+    hide_index=True
+)
 
 with st.expander("🔍 Backlog count explanation (why numbers differ)"):
     st.write("Backlog (ALL open RITMs + EAST Delivery incidents):", len(df_backlog))
