@@ -559,8 +559,6 @@ if not top_attention.empty:
 
 else:
     st.success("No immediate-risk tickets found.")
-else:
-    st.success("No immediate-risk tickets found.")
     
 st.markdown("---")
 st.subheader("📈 Ticket Aging Distribution")
