@@ -470,7 +470,7 @@ c5.metric("L3 Tickets", l3)
 st.markdown("---")
 st.subheader("📊 Open Backlog Snapshot")
 
-b1, b2, b3 = st.columns(3)
+b1, b2, b3, b4 = st.columns(4)
 
 with b1:
     st.metric(
