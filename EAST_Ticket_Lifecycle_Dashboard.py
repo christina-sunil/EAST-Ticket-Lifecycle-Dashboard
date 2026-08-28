@@ -528,10 +528,18 @@ top_attention = df_backlog[
 ].head(5)
 
 if not top_attention.empty:
+    if not top_attention.empty:
+
+    top_attention["Ticket URL"] = (
+        INSTANCE_URL
+        + "/nav_to.do?uri=task.do?sysparm_query=number="
+        + top_attention["number"].astype(str)
+    )
+
     st.dataframe(
         top_attention[
             [
-                "number",
+                "Ticket URL",
                 "assigned_to",
                 "assignment_group",
                 "ticket_age_days",
@@ -541,8 +549,17 @@ if not top_attention.empty:
             ]
         ],
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        column_config={
+            "Ticket URL": st.column_config.LinkColumn(
+                "Ticket",
+                display_text="Open Ticket"
+            )
+        }
     )
+
+else:
+    st.success("No immediate-risk tickets found.")
 else:
     st.success("No immediate-risk tickets found.")
     
