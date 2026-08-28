@@ -528,23 +528,21 @@ top_attention = df_backlog[
 ].head(5)
 
 if not top_attention.empty:
-
-st.dataframe(
-    top_attention[
-        [
-            "number",
-            "assigned_to",
-            "assignment_group",
-            "ticket_age_days",
-            "inactivity_days",
-            "priority",
-            "why_flagged"
-        ]
-    ],
-    use_container_width=True,
-    hide_index=True
-)
-
+    st.dataframe(
+        top_attention[
+            [
+                "number",
+                "assigned_to",
+                "assignment_group",
+                "ticket_age_days",
+                "inactivity_days",
+                "priority",
+                "why_flagged"
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True
+    )
 else:
     st.success("No immediate-risk tickets found.")
     
