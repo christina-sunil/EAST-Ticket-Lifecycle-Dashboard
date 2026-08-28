@@ -528,7 +528,6 @@ top_attention = df_backlog[
 ].head(5)
 
 if not top_attention.empty:
-if not top_attention.empty:
 
     top_attention["Ticket URL"] = (
         INSTANCE_URL
