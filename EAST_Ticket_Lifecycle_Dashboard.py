@@ -504,6 +504,15 @@ with b3:
             ]
         )
     )
+with b4:
+    st.metric(
+        "L3 Support",
+        len(
+            df_view_base[
+                df_view_base["level"] == "L3"
+            ]
+        )
+    )
 st.markdown("---")
 st.subheader("🚨 Tickets Needing Immediate Attention")
 
