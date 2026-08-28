@@ -460,17 +460,32 @@ avg_time = round(
     2
 ) if total else 0
 
-c1, c2, c3, c4, c5 = st.columns(5)
+c1, c2, c3, c4 = st.columns(4)
 
-c1.metric("Total Tickets", total)
-c2.metric("Access Tickets", access)
-c3.metric("L1 Tickets", l1)
-c4.metric("L2 Tickets", l2)
-c5.metric("L3 Tickets", l3)
+east_backlog = access + l1 + l2
+
+east_avg_age = round(
+    df_view_base[
+        df_view_base["level"].isin(
+            ["Access", "L1", "L2"]
+        )
+    ]["ticket_age_days"].mean(),
+    2
+)
+
+c1, c2, c3, c4 = st.columns(4)
+
+c1.metric("Total EAST Backlog", east_backlog)
+
+c2.metric("L1 Tickets", l1)
+
+c3.metric("L2 Tickets", l2)
+
+c4.metric("Avg Time Taken (Days)", east_avg_age)
 st.markdown("---")
 st.subheader("📊 Open Backlog Snapshot")
 
-b1, b2, b3, b4 = st.columns(4)
+b1, b2, b3 = st.columns(3)
 
 with b1:
     st.metric(
@@ -504,15 +519,7 @@ with b3:
             ]
         )
     )
-with b4:
-    st.metric(
-        "L3 Support",
-        len(
-            df_view_base[
-                df_view_base["level"] == "L3"
-            ]
-        )
-    )
+    
 st.markdown("---")
 st.subheader("🚨 Tickets Needing Immediate Attention")
 
