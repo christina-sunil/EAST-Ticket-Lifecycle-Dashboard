@@ -584,6 +584,36 @@ st.dataframe(
     use_container_width=True,
     hide_index=True
 )
+st.markdown("---")
+st.subheader("👥 Top 5 Oldest EAST Tickets")
+
+east_oldest = (
+    df_view_base[
+        df_view_base["level"].isin(
+            ["Access", "L1", "L2"]
+        )
+    ]
+    .sort_values(
+        "ticket_age_days",
+        ascending=False
+    )
+    .head(5)
+)
+
+st.dataframe(
+    east_oldest[
+        [
+            "number",
+            "assigned_to",
+            "assignment_group",
+            "priority",
+            "ticket_age_days",
+            "age_bucket"
+        ]
+    ],
+    use_container_width=True,
+    hide_index=True
+)
 
 with st.expander("🔍 Backlog count explanation (why numbers differ)"):
     st.write("Backlog (ALL open RITMs + EAST Delivery incidents):", len(df_backlog))
