@@ -696,7 +696,8 @@ elif tab == "L3 Support":
 
     st.dataframe(
     l3_view[
-        [
+    l3_view["level"] == "L3"
+][
             "number",
             "assigned_to",
             "assignment_group",
