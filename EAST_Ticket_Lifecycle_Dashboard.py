@@ -600,6 +600,7 @@ tab = st.radio(
         "All Tickets",
         "L1 Tickets",
         "L2 Tickets",
+        "L3 Support",
         "Individual Report",
         "Not Updated",
         "Needs Action",
@@ -626,6 +627,57 @@ elif tab == "L1 Tickets":
 elif tab == "L2 Tickets":
     d = df_view_base[df_view_base["level"] == "L2"]
     st.dataframe(d[standard_cols], use_container_width=True, hide_index=True)
+
+elif tab == "L3 Support":
+
+    st.subheader("🔹 L3 Support Overview")
+
+    l3_view = df_view_base[
+        df_view_base["level"] == "L3"
+    ].copy()
+
+    l3_total = len(l3_view)
+
+    l3_avg_age = round(
+        l3_view["ticket_age_days"].mean(),
+        2
+    ) if l3_total else 0
+
+    l3_not_updated = len(
+        l3_view[
+            l3_view["inactivity_days"] > NOT_UPDATED_DAYS
+        ]
+    )
+
+    l3_old = len(
+        l3_view[
+            l3_view["ticket_age_days"] > 30
+        ]
+    )
+
+    l3c1, l3c2, l3c3, l3c4 = st.columns(4)
+
+    l3c1.metric("L3 Backlog", l3_total)
+    l3c2.metric("Avg Age (Days)", l3_avg_age)
+    l3c3.metric("Not Updated >2 Days", l3_not_updated)
+    l3c4.metric("Old Tickets (>30 Days)", l3_old)
+
+    st.markdown("---")
+
+    st.dataframe(
+        l3_view[
+            [
+                "number",
+                "assigned_to",
+                "assignment_group",
+                "priority",
+                "ticket_age_days",
+                "inactivity_days"
+            ]
+        ],
+        use_container_width=True,
+        hide_index=True
+    )
 
 elif tab == "Not Updated":
     d = df_view_base[df_view_base["inactivity_days"] > NOT_UPDATED_DAYS]
