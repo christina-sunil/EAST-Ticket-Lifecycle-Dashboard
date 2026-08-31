@@ -694,11 +694,11 @@ elif tab == "L3 Support":
 
     st.markdown("---")
 
-st.dataframe(
-    l3_view[standard_cols],
-    use_container_width=True,
-    hide_index=True
-)
+    st.dataframe(
+        l3_view[standard_cols],
+        use_container_width=True,
+        hide_index=True
+    )
     
 elif tab == "Not Updated":
     d = df_view_base[df_view_base["inactivity_days"] > NOT_UPDATED_DAYS]
