@@ -689,6 +689,7 @@ st.dataframe(
     use_container_width=True,
     hide_index=True
 )
+
 elif tab == "Not Updated":
     d = df_view_base[df_view_base["inactivity_days"] > NOT_UPDATED_DAYS]
     st.dataframe(d[standard_cols], use_container_width=True, hide_index=True)
