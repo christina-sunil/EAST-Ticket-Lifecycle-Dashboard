@@ -634,7 +634,8 @@ tab = st.radio(
         "Individual Report",
         "Not Updated",
         "Needs Action",
-        "Management Intervention"
+        "Management Intervention",
+        "Ticket Age Interval(s)",
     ],
     horizontal=True
 )
@@ -735,7 +736,7 @@ elif tab == "Individual Report":
     st.subheader("📋 All Tickets for Selected Member")
     st.dataframe(d[standard_cols], use_container_width=True, hide_index=True)
 
-else:
+elif tab == "Management Intervention":
     # =============================
     # MANAGEMENT INTERVENTION
     # =============================
@@ -832,6 +833,61 @@ Business-day logic:
 
     st.dataframe(
         full_display.style.apply(highlight_rows_weighted, axis=1),
+        use_container_width=True,
+        hide_index=True
+    )
+    
+elif tab == "Ticket Age Interval(s)":
+
+    st.subheader("🚨 Ticket Age Interval(s)")
+
+    east_age = df_view_base[
+        df_view_base["level"].isin(["Access", "L1", "L2"])
+    ].copy()
+
+    age24 = len(
+        east_age[east_age["ticket_age_days"] <= 1]
+    )
+
+    age72 = len(
+        east_age[
+            (east_age["ticket_age_days"] > 1)
+            & (east_age["ticket_age_days"] <= 3)
+        ]
+    )
+
+    age120 = len(
+        east_age[
+            (east_age["ticket_age_days"] > 3)
+            & (east_age["ticket_age_days"] <= 5)
+        ]
+    )
+
+    age120plus = len(
+        east_age[
+            east_age["ticket_age_days"] > 5
+        ]
+    )
+
+    a1, a2, a3, a4 = st.columns(4)
+
+    a1.metric("24 Hours", age24)
+    a2.metric("72 Hours", age72)
+    a3.metric("120 Hours", age120)
+    a4.metric("120+ Hours", age120plus)
+
+    st.markdown("---")
+
+    st.dataframe(
+        east_age[
+            [
+                "number",
+                "assigned_to",
+                "assignment_group",
+                "priority",
+                "ticket_age_days"
+            ]
+        ],
         use_container_width=True,
         hide_index=True
     )
