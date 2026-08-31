@@ -695,16 +695,7 @@ elif tab == "L3 Support":
     st.markdown("---")
 
 st.dataframe(
-    l3_view[
-    [
-        "number",
-        "assigned_to",
-        "assignment_group",
-        "priority",
-        "ticket_age_days",
-        "inactivity_days"
-    ]
-],
+    l3_view[standard_cols],
     use_container_width=True,
     hide_index=True
 )
