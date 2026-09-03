@@ -841,12 +841,14 @@ elif tab == "Ticket Age Interval(s)":
 
     st.subheader("🚨 Ticket Age Interval(s)")
 
-    east_age = df_view_base[
-        df_view_base["level"].isin(["Access", "L1", "L2"])
-    ].copy()
+ east_age = df_view_base[
+    df_view_base["level"].isin(["Access", "L1", "L2"])
+].copy()
 
 age24 = len(
-    east_age[east_age["ticket_age_days"] <= 1]
+    east_age.loc[
+        east_age["ticket_age_days"] <= 1
+    ]
 )
 
 age72 = len(
