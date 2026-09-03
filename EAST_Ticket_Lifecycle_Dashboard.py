@@ -736,151 +736,16 @@ elif tab == "Individual Report":
     st.subheader("📋 All Tickets for Selected Member")
     st.dataframe(d[standard_cols], use_container_width=True, hide_index=True)
 
-elif tab == "Management Intervention":
-    # =============================
-    # MANAGEMENT INTERVENTION
-    # =============================
-    st.subheader("🚨 Management Intervention")
-    st.caption(
-        "Weighted model using Chris lookups + weights (0–10 score). "
-        "Includes RITMs + active incidents assigned to EAST Delivery."
-    )
-
-    # =============================
-    # MANAGEMENT INTERVENTION METRICS
-    # =============================
-    k1, k2, k3, k4 = st.columns(4)
-
-    k1.metric("🔴 Immediate", immediate_cnt)
-    k2.metric("🟠 High Risk", highrisk_cnt)
-    k3.metric("🟡 Watch", watch_cnt)
-    k4.metric("✅ Normal", normal_cnt)
-
-    # =============================
-    # WEIGHTED SCORE EXPLANATION
-    # =============================
-    with st.expander(
-        "📊 How the Weighted Score is Calculated (Chris Model)",
-        expanded=False
-    ):
-        st.markdown(
-            "**Final Score (0–10) = SUM(Scoreᵢ × Weightᵢ)**"
-        )
-
-        st.code(f"""
-Weights:
-- Ticket Age: {WEIGHTS['age'] * 100:.0f}%
-- Inactivity: {WEIGHTS['inactivity'] * 100:.0f}%
-- Priority: {WEIGHTS['priority'] * 100:.0f}%
-- Reassignment Count: {WEIGHTS['reassign'] * 100:.0f}%
-- Skill Alignment: {WEIGHTS['skill'] * 100:.0f}%
-- Requester Impact: {WEIGHTS['requester'] * 100:.0f}%
-
-Risk bands:
-- 0–4.0 = Low
-- 4.1–7.0 = Medium
-- 7.1–10.0 = High
-
-Business-day logic:
-- Ticket Age and Inactivity exclude weekends (Mon–Fri only)
-- Company holidays are not excluded in this version
-""")
-
-    # =============================
-    # TOP 10 TICKETS
-    # =============================
-    st.subheader("🔥 Top 10 tickets (ranked by weighted score)")
-
-    top10_display = df_backlog[
-        [
-            "final_score",
-            "number",
-            "ticket_type",
-            "assigned_to",
-            "assignment_group",
-            "priority",
-            "ticket_age_days",
-            "inactivity_days",
-            "intervention",
-            "why_flagged"
-        ]
-    ].head(10).copy()
-
-    top10_display.rename(
-        columns={
-            "final_score": "Final Score",
-            "number": "Ticket",
-            "ticket_type": "Type",
-            "assigned_to": "Assigned To",
-            "assignment_group": "Assignment Group",
-            "priority": "Priority",
-            "ticket_age_days": "Ticket Age (days)",
-            "inactivity_days": "Inactivity (days)",
-            "intervention": "Intervention",
-            "why_flagged": "Why Flagged"
-        },
-        inplace=True
-    )
-
-    st.dataframe(
-        top10_display,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    # =============================
-    # FULL BACKLOG TABLE
-    # =============================
-    st.subheader("📋 All Backlog by weighted intervention score")
-
-    full_display = df_backlog[
-        [
-            "final_score",
-            "number",
-            "ticket_type",
-            "assigned_to",
-            "assignment_group",
-            "priority",
-            "ticket_age_days",
-            "inactivity_days",
-            "intervention",
-            "risk_level",
-            "why_flagged"
-        ]
-    ].copy()
-
-    full_display.rename(
-        columns={
-            "final_score": "Final Score",
-            "number": "Ticket",
-            "ticket_type": "Type",
-            "assigned_to": "Assigned To",
-            "assignment_group": "Assignment Group",
-            "priority": "Priority",
-            "ticket_age_days": "Ticket Age (days)",
-            "inactivity_days": "Inactivity (days)",
-            "intervention": "Intervention",
-            "risk_level": "Risk Level",
-            "why_flagged": "Why Flagged"
-        },
-        inplace=True
-    )
-
-    st.dataframe(
-        full_display.style.apply(
-            highlight_rows_weighted,
-            axis=1
-        ),
-        use_container_width=True,
-        hide_index=True
-    )
-
-
 elif tab == "Ticket Age Interval(s)":
     # =============================
     # TICKET AGE INTERVALS
     # =============================
     st.subheader("🚨 Ticket Age Interval(s)")
+
+    st.caption(
+        "View EAST tickets by age interval and priority. "
+        "Tickets are grouped based on ticket age in business days."
+    )
 
     # =============================
     # FILTER EAST TICKETS
@@ -890,17 +755,33 @@ elif tab == "Ticket Age Interval(s)":
     ].copy()
 
     # =============================
+    # CREATE AGE BUCKET
+    # =============================
+    def get_age_bucket(days):
+        if days <= 1:
+            return "0–24 Hours"
+        elif days <= 2:
+            return "24–48 Hours"
+        elif days <= 3:
+            return "48–72 Hours"
+        elif days <= 5:
+            return "72–120 Hours"
+        else:
+            return "120+ Hours"
+
+    east_age["age_bucket"] = east_age["ticket_age_days"].apply(
+        get_age_bucket
+    )
+
+    # =============================
     # AGE INTERVAL COUNTS
     # =============================
-
-    # 24 Hours
     age24 = len(
         east_age[
             east_age["ticket_age_days"] <= 1
         ]
     )
 
-    # 24–48 Hours
     age48 = len(
         east_age[
             (east_age["ticket_age_days"] > 1)
@@ -908,7 +789,6 @@ elif tab == "Ticket Age Interval(s)":
         ]
     )
 
-    # 48–72 Hours
     age72 = len(
         east_age[
             (east_age["ticket_age_days"] > 2)
@@ -916,7 +796,6 @@ elif tab == "Ticket Age Interval(s)":
         ]
     )
 
-    # 72–120 Hours
     age120 = len(
         east_age[
             (east_age["ticket_age_days"] > 3)
@@ -924,7 +803,6 @@ elif tab == "Ticket Age Interval(s)":
         ]
     )
 
-    # More than 120 Hours
     age120plus = len(
         east_age[
             east_age["ticket_age_days"] > 5
@@ -936,27 +814,196 @@ elif tab == "Ticket Age Interval(s)":
     # =============================
     a1, a2, a3, a4, a5 = st.columns(5)
 
-    a1.metric("24 Hours", age24)
-    a2.metric("48 Hours", age48)
-    a3.metric("72 Hours", age72)
-    a4.metric("120 Hours", age120)
+    a1.metric("0–24 Hours", age24)
+    a2.metric("24–48 Hours", age48)
+    a3.metric("48–72 Hours", age72)
+    a4.metric("72–120 Hours", age120)
     a5.metric("120+ Hours", age120plus)
 
     st.markdown("---")
 
     # =============================
-    # TICKET DETAILS
+    # FILTER SECTION
     # =============================
-    st.dataframe(
-        east_age[
+    st.subheader("🔎 Filter Tickets")
+
+    f1, f2 = st.columns(2)
+
+    # =============================
+    # AGE FILTER
+    # =============================
+    with f1:
+        age_filter = st.selectbox(
+            "Ticket Age",
             [
-                "number",
-                "assigned_to",
-                "assignment_group",
-                "priority",
-                "ticket_age_days"
-            ]
-        ],
-        use_container_width=True,
-        hide_index=True
+                "All Ages",
+                "0–24 Hours",
+                "24–48 Hours",
+                "48–72 Hours",
+                "72–120 Hours",
+                "120+ Hours"
+            ],
+            index=0
+        )
+
+    # =============================
+    # PRIORITY FILTER
+    # =============================
+    with f2:
+        priority_options = ["All Priorities"]
+
+        if "priority" in east_age.columns:
+            available_priorities = (
+                east_age["priority"]
+                .dropna()
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+
+            priority_options.extend(
+                sorted(available_priorities)
+            )
+
+        priority_filter = st.selectbox(
+            "Priority",
+            priority_options,
+            index=0
+        )
+
+    # =============================
+    # APPLY AGE FILTER
+    # =============================
+    if age_filter == "0–24 Hours":
+
+        filtered_age = east_age[
+            east_age["ticket_age_days"] <= 1
+        ].copy()
+
+    elif age_filter == "24–48 Hours":
+
+        filtered_age = east_age[
+            (east_age["ticket_age_days"] > 1)
+            & (east_age["ticket_age_days"] <= 2)
+        ].copy()
+
+    elif age_filter == "48–72 Hours":
+
+        filtered_age = east_age[
+            (east_age["ticket_age_days"] > 2)
+            & (east_age["ticket_age_days"] <= 3)
+        ].copy()
+
+    elif age_filter == "72–120 Hours":
+
+        filtered_age = east_age[
+            (east_age["ticket_age_days"] > 3)
+            & (east_age["ticket_age_days"] <= 5)
+        ].copy()
+
+    elif age_filter == "120+ Hours":
+
+        filtered_age = east_age[
+            east_age["ticket_age_days"] > 5
+        ].copy()
+
+    else:
+
+        filtered_age = east_age.copy()
+
+    # =============================
+    # APPLY PRIORITY FILTER
+    # =============================
+    if priority_filter != "All Priorities":
+
+        filtered_age = filtered_age[
+            filtered_age["priority"].astype(str)
+            == priority_filter
+        ].copy()
+
+    # =============================
+    # FILTER SUMMARY
+    # =============================
+    st.markdown("---")
+
+    summary_col1, summary_col2, summary_col3 = st.columns(3)
+
+    summary_col1.metric(
+        "Tickets Matching Filter",
+        len(filtered_age)
     )
+
+    if age_filter == "All Ages":
+        age_summary = "All Ages"
+    else:
+        age_summary = age_filter
+
+    if priority_filter == "All Priorities":
+        priority_summary = "All Priorities"
+    else:
+        priority_summary = priority_filter
+
+    summary_col2.metric(
+        "Age Filter",
+        age_summary
+    )
+
+    summary_col3.metric(
+        "Priority Filter",
+        priority_summary
+    )
+
+    # =============================
+    # SORT OLDEST FIRST
+    # =============================
+    filtered_age = filtered_age.sort_values(
+        by="ticket_age_days",
+        ascending=False
+    )
+
+    # =============================
+    # DISPLAY TABLE
+    # =============================
+    st.subheader("📋 Tickets Matching Selection")
+
+    if len(filtered_age) == 0:
+
+        st.info(
+            "No tickets match the selected age and priority filters."
+        )
+
+    else:
+
+        display_columns = [
+            "number",
+            "assigned_to",
+            "assignment_group",
+            "priority",
+            "ticket_age_days",
+            "age_bucket"
+        ]
+
+        filtered_display = filtered_age[
+            display_columns
+        ].copy()
+
+        # =============================
+        # RENAME COLUMNS
+        # =============================
+        filtered_display.rename(
+            columns={
+                "number": "Ticket",
+                "assigned_to": "Assigned To",
+                "assignment_group": "Assignment Group",
+                "priority": "Priority",
+                "ticket_age_days": "Ticket Age (days)",
+                "age_bucket": "Age Interval"
+            },
+            inplace=True
+        )
+
+        st.dataframe(
+            filtered_display,
+            use_container_width=True,
+            hide_index=True
+        )
