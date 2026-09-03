@@ -741,24 +741,40 @@ elif tab == "Management Intervention":
     # MANAGEMENT INTERVENTION
     # =============================
     st.subheader("🚨 Management Intervention")
-    st.caption("Weighted model using Chris lookups + weights (0–10 score). Includes RITMs + active incidents assigned to EAST Delivery.")
+    st.caption(
+        "Weighted model using Chris lookups + weights (0–10 score). "
+        "Includes RITMs + active incidents assigned to EAST Delivery."
+    )
 
+    # =============================
+    # MANAGEMENT INTERVENTION METRICS
+    # =============================
     k1, k2, k3, k4 = st.columns(4)
+
     k1.metric("🔴 Immediate", immediate_cnt)
     k2.metric("🟠 High Risk", highrisk_cnt)
     k3.metric("🟡 Watch", watch_cnt)
     k4.metric("✅ Normal", normal_cnt)
 
-    with st.expander("📊 How the Weighted Score is Calculated (Chris Model)", expanded=False):
-        st.markdown("**Final Score (0–10) = SUM(Scoreᵢ × Weightᵢ)**")
+    # =============================
+    # WEIGHTED SCORE EXPLANATION
+    # =============================
+    with st.expander(
+        "📊 How the Weighted Score is Calculated (Chris Model)",
+        expanded=False
+    ):
+        st.markdown(
+            "**Final Score (0–10) = SUM(Scoreᵢ × Weightᵢ)**"
+        )
+
         st.code(f"""
 Weights:
-- Ticket Age: {WEIGHTS['age']*100:.0f}%
-- Inactivity: {WEIGHTS['inactivity']*100:.0f}%
-- Priority: {WEIGHTS['priority']*100:.0f}%
-- Reassignment Count: {WEIGHTS['reassign']*100:.0f}%
-- Skill Alignment: {WEIGHTS['skill']*100:.0f}%
-- Requester Impact: {WEIGHTS['requester']*100:.0f}%
+- Ticket Age: {WEIGHTS['age'] * 100:.0f}%
+- Inactivity: {WEIGHTS['inactivity'] * 100:.0f}%
+- Priority: {WEIGHTS['priority'] * 100:.0f}%
+- Reassignment Count: {WEIGHTS['reassign'] * 100:.0f}%
+- Skill Alignment: {WEIGHTS['skill'] * 100:.0f}%
+- Requester Impact: {WEIGHTS['requester'] * 100:.0f}%
 
 Risk bands:
 - 0–4.0 = Low
@@ -770,87 +786,121 @@ Business-day logic:
 - Company holidays are not excluded in this version
 """)
 
-    # Top 10
+    # =============================
+    # TOP 10 TICKETS
+    # =============================
     st.subheader("🔥 Top 10 tickets (ranked by weighted score)")
-    top10_display = df_backlog[[
-        "final_score",
-        "number",
-        "ticket_type",
-        "assigned_to",
-        "assignment_group",
-        "priority",
-        "ticket_age_days",
-        "inactivity_days",
-        "intervention",
-        "why_flagged"
-    ]].head(10).copy()
 
-    top10_display.rename(columns={
-        "final_score": "Final Score",
-        "number": "Ticket",
-        "ticket_type": "Type",
-        "assigned_to": "Assigned To",
-        "assignment_group": "Assignment Group",
-        "priority": "Priority",
-        "ticket_age_days": "Ticket Age (days)",
-        "inactivity_days": "Inactivity (days)",
-        "intervention": "Intervention",
-        "why_flagged": "Why Flagged"
-    }, inplace=True)
+    top10_display = df_backlog[
+        [
+            "final_score",
+            "number",
+            "ticket_type",
+            "assigned_to",
+            "assignment_group",
+            "priority",
+            "ticket_age_days",
+            "inactivity_days",
+            "intervention",
+            "why_flagged"
+        ]
+    ].head(10).copy()
 
-    st.dataframe(top10_display, use_container_width=True, hide_index=True)
-
-    # Full table
-    st.subheader("📋 All Backlog by weighted intervention score")
-
-    full_display = df_backlog[[
-        "final_score",
-        "number",
-        "ticket_type",
-        "assigned_to",
-        "assignment_group",
-        "priority",
-        "ticket_age_days",
-        "inactivity_days",
-        "intervention",
-        "risk_level",
-        "why_flagged"
-    ]].copy()
-
-    full_display.rename(columns={
-        "final_score": "Final Score",
-        "number": "Ticket",
-        "ticket_type": "Type",
-        "assigned_to": "Assigned To",
-        "assignment_group": "Assignment Group",
-        "priority": "Priority",
-        "ticket_age_days": "Ticket Age (days)",
-        "inactivity_days": "Inactivity (days)",
-        "intervention": "Intervention",
-        "risk_level": "Risk Level",
-        "why_flagged": "Why Flagged"
-    }, inplace=True)
+    top10_display.rename(
+        columns={
+            "final_score": "Final Score",
+            "number": "Ticket",
+            "ticket_type": "Type",
+            "assigned_to": "Assigned To",
+            "assignment_group": "Assignment Group",
+            "priority": "Priority",
+            "ticket_age_days": "Ticket Age (days)",
+            "inactivity_days": "Inactivity (days)",
+            "intervention": "Intervention",
+            "why_flagged": "Why Flagged"
+        },
+        inplace=True
+    )
 
     st.dataframe(
-        full_display.style.apply(highlight_rows_weighted, axis=1),
+        top10_display,
         use_container_width=True,
         hide_index=True
     )
 
+    # =============================
+    # FULL BACKLOG TABLE
+    # =============================
+    st.subheader("📋 All Backlog by weighted intervention score")
+
+    full_display = df_backlog[
+        [
+            "final_score",
+            "number",
+            "ticket_type",
+            "assigned_to",
+            "assignment_group",
+            "priority",
+            "ticket_age_days",
+            "inactivity_days",
+            "intervention",
+            "risk_level",
+            "why_flagged"
+        ]
+    ].copy()
+
+    full_display.rename(
+        columns={
+            "final_score": "Final Score",
+            "number": "Ticket",
+            "ticket_type": "Type",
+            "assigned_to": "Assigned To",
+            "assignment_group": "Assignment Group",
+            "priority": "Priority",
+            "ticket_age_days": "Ticket Age (days)",
+            "inactivity_days": "Inactivity (days)",
+            "intervention": "Intervention",
+            "risk_level": "Risk Level",
+            "why_flagged": "Why Flagged"
+        },
+        inplace=True
+    )
+
+    st.dataframe(
+        full_display.style.apply(
+            highlight_rows_weighted,
+            axis=1
+        ),
+        use_container_width=True,
+        hide_index=True
+    )
+
+
 elif tab == "Ticket Age Interval(s)":
+    # =============================
+    # TICKET AGE INTERVALS
+    # =============================
+    st.subheader("🚨 Ticket Age Interval(s)")
 
-st.subheader("🚨 Ticket Age Interval(s)")
-
+    # =============================
+    # FILTER EAST TICKETS
+    # =============================
     east_age = df_view_base[
         df_view_base["level"].isin(["Access", "L1", "L2"])
     ].copy()
 
+    # =============================
+    # AGE INTERVAL COUNTS
+    # =============================
+
+    # 24 Hours
     age24 = len(
         east_age[
             east_age["ticket_age_days"] <= 1
         ]
     )
 
+    # 24–48 Hours
     age48 = len(
         east_age[
             (east_age["ticket_age_days"] > 1)
@@ -858,6 +908,7 @@ st.subheader("🚨 Ticket Age Interval(s)")
         ]
     )
 
+    # 48–72 Hours
     age72 = len(
         east_age[
             (east_age["ticket_age_days"] > 2)
@@ -865,6 +916,7 @@ st.subheader("🚨 Ticket Age Interval(s)")
         ]
     )
 
+    # 72–120 Hours
     age120 = len(
         east_age[
             (east_age["ticket_age_days"] > 3)
@@ -872,12 +924,16 @@ st.subheader("🚨 Ticket Age Interval(s)")
         ]
     )
 
+    # More than 120 Hours
     age120plus = len(
         east_age[
             east_age["ticket_age_days"] > 5
         ]
     )
 
+    # =============================
+    # METRIC CARDS
+    # =============================
     a1, a2, a3, a4, a5 = st.columns(5)
 
     a1.metric("24 Hours", age24)
@@ -888,6 +944,9 @@ st.subheader("🚨 Ticket Age Interval(s)")
 
     st.markdown("---")
 
+    # =============================
+    # TICKET DETAILS
+    # =============================
     st.dataframe(
         east_age[
             [
