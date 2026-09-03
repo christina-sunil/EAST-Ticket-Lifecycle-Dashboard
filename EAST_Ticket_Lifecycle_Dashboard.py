@@ -876,13 +876,13 @@ age120plus = len(
     ]
 )
 
-    a1, a2, a3, a4, a5 = st.columns(5)
+a1, a2, a3, a4, a5 = st.columns(5)
 
-    a1.metric("24 Hours", age24)
-    a2.metric("48 Hours", age48)
-    a3.metric("72 Hours", age72)
-    a4.metric("120 Hours", age120)
-    a5.metric("120+ Hours", age120plus)
+a1.metric("24 Hours", age24)
+a2.metric("48 Hours", age48)
+a3.metric("72 Hours", age72)
+a4.metric("120 Hours", age120)
+a5.metric("120+ Hours", age120plus)
 
     st.markdown("---")
 
