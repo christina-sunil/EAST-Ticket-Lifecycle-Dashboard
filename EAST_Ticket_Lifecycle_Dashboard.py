@@ -845,31 +845,31 @@ elif tab == "Ticket Age Interval(s)":
         df_view_base["level"].isin(["Access", "L1", "L2"])
     ].copy()
 
-    age24 = len(
+age24 = len(
     east_age[east_age["ticket_age_days"] <= 1]
 )
 
-    age72 = len(
+age72 = len(
     east_age[
         (east_age["ticket_age_days"] > 1)
         & (east_age["ticket_age_days"] <= 3)
     ]
 )
 
-    age120 = len(
+age120 = len(
     east_age[
         (east_age["ticket_age_days"] > 3)
         & (east_age["ticket_age_days"] <= 5)
     ]
 )
 
-    age120plus = len(
+age120plus = len(
     east_age[
         east_age["ticket_age_days"] > 5
     ]
 )
 
-    a1, a2, a3, a4 = st.columns(4)
+a1, a2, a3, a4 = st.columns(4)
 
 a1.metric("24 Hours", age24)
 a2.metric("72 Hours", age72)
