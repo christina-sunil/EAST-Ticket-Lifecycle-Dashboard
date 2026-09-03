@@ -846,35 +846,43 @@ elif tab == "Ticket Age Interval(s)":
     ].copy()
 
     age24 = len(
-        east_age[east_age["ticket_age_days"] <= 1]
-    )
+    east_age[east_age["ticket_age_days"] <= 1]
+)
 
-    age72 = len(
-        east_age[
-            (east_age["ticket_age_days"] > 1)
-            & (east_age["ticket_age_days"] <= 3)
-        ]
-    )
+age48 = len(
+    east_age[
+        (east_age["ticket_age_days"] > 1)
+        & (east_age["ticket_age_days"] <= 2)
+    ]
+)
 
-    age120 = len(
-        east_age[
-            (east_age["ticket_age_days"] > 3)
-            & (east_age["ticket_age_days"] <= 5)
-        ]
-    )
+age72 = len(
+    east_age[
+        (east_age["ticket_age_days"] > 2)
+        & (east_age["ticket_age_days"] <= 3)
+    ]
+)
 
-    age120plus = len(
-        east_age[
-            east_age["ticket_age_days"] > 5
-        ]
-    )
+age120 = len(
+    east_age[
+        (east_age["ticket_age_days"] > 3)
+        & (east_age["ticket_age_days"] <= 5)
+    ]
+)
 
-    a1, a2, a3, a4 = st.columns(4)
+age120plus = len(
+    east_age[
+        east_age["ticket_age_days"] > 5
+    ]
+)
+
+    a1, a2, a3, a4, a5 = st.columns(5)
 
     a1.metric("24 Hours", age24)
-    a2.metric("72 Hours", age72)
-    a3.metric("120 Hours", age120)
-    a4.metric("120+ Hours", age120plus)
+    a2.metric("48 Hours", age48)
+    a3.metric("72 Hours", age72)
+    a4.metric("120 Hours", age120)
+    a5.metric("120+ Hours", age120plus)
 
     st.markdown("---")
 
