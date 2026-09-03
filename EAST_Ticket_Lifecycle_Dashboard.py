@@ -884,9 +884,9 @@ a3.metric("72 Hours", age72)
 a4.metric("120 Hours", age120)
 a5.metric("120+ Hours", age120plus)
 
-    st.markdown("---")
+st.markdown("---")
 
-    st.dataframe(
+st.dataframe(
         east_age[
             [
                 "number",
